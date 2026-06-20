@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>实时汇率大盘</title>
+<style>
+  :root{--bg:#061018;--panel:rgba(12,30,44,.78);--line:rgba(111,220,255,.22);--text:#e8fbff;--muted:#86a7b3;--up:#20f09a;--down:#ff4b6e;--gold:#ffd166;}
+  *{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 20% 0%,#123454 0,#061018 45%,#02060a 100%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,"Microsoft YaHei",sans-serif;overflow:hidden;}
+  body:before{content:"";position:fixed;inset:0;background:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);background-size:36px 36px;mask-image:linear-gradient(to bottom,rgba(0,0,0,.9),rgba(0,0,0,.25));pointer-events:none}
+  .wrap{height:100vh;padding:24px;display:grid;grid-template-rows:auto auto 1fr auto;gap:18px;position:relative;z-index:1}
+  header{display:flex;justify-content:space-between;align-items:flex-end}.title{font-size:34px;font-weight:900;letter-spacing:.08em}.sub{color:var(--muted);font-size:14px;margin-top:7px}.clock{text-align:right}.clock .time{font-size:30px;font-weight:800;font-variant-numeric:tabular-nums}.clock .status{font-size:13px;color:var(--muted)}
+  .ticker{height:44px;border:1px solid var(--line);background:rgba(3,10,16,.75);overflow:hidden;border-radius:14px;display:flex;align-items:center;box-shadow:0 0 34px rgba(0,200,255,.08) inset}.ticker-track{white-space:nowrap;animation:marquee 30s linear infinite;font-size:18px;font-weight:700}.ticker span{display:inline-block;margin-right:48px}.up{color:var(--up)}.down{color:var(--down)}@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;min-height:0}.card{position:relative;border:1px solid var(--line);background:linear-gradient(180deg,rgba(17,44,64,.86),rgba(5,15,23,.76));border-radius:20px;padding:18px;box-shadow:0 22px 60px rgba(0,0,0,.32),inset 0 0 28px rgba(51,202,255,.05);overflow:hidden}.card:after{content:"";position:absolute;inset:-80px;background:radial-gradient(circle at var(--x,70%) var(--y,20%),rgba(75,205,255,.18),transparent 32%);pointer-events:none}.pair{font-size:21px;font-weight:900;letter-spacing:.05em}.name{color:var(--muted);font-size:12px;margin-top:3px}.rate{font-size:38px;line-height:1.1;font-weight:900;margin:16px 0 8px;font-variant-numeric:tabular-nums}.delta{font-size:18px;font-weight:800}.meta{display:flex;justify-content:space-between;align-items:center;margin-top:12px;color:var(--muted);font-size:12px}.spark{height:58px;width:100%;margin-top:12px}.flashUp{animation:flashUp .5s}.flashDown{animation:flashDown .5s}@keyframes flashUp{0%{box-shadow:0 0 0 2px rgba(32,240,154,.75),0 0 35px rgba(32,240,154,.35)}100%{}}@keyframes flashDown{0%{box-shadow:0 0 0 2px rgba(255,75,110,.75),0 0 35px rgba(255,75,110,.35)}100%{}}
+  .bottom{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}.board,.note{border:1px solid var(--line);background:rgba(4,14,22,.78);border-radius:18px;padding:16px}.board-title{font-weight:900;margin-bottom:10px;color:#bff4ff}.bars{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;align-items:end;height:90px}.bar{border-radius:8px 8px 2px 2px;background:linear-gradient(to top,rgba(32,240,154,.9),rgba(86,217,255,.75));min-height:12px;position:relative}.bar.downbar{background:linear-gradient(to top,rgba(255,75,110,.9),rgba(255,209,102,.75))}.bar small{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);color:var(--muted);font-size:11px}.note{font-size:13px;color:var(--muted);line-height:1.7}.source{color:var(--gold)}
+  .error{position:fixed;left:24px;right:24px;bottom:20px;background:rgba(255,75,110,.14);border:1px solid rgba(255,75,110,.45);padding:12px 16px;border-radius:14px;color:#ffd8df;display:none;z-index:5}
+  @media(max-width:1100px){body{overflow:auto}.wrap{height:auto}.grid{grid-template-columns:repeat(2,1fr)}.bottom{grid-template-columns:1fr}}@media(max-width:620px){.grid{grid-template-columns:1fr}.title{font-size:24px}.clock .time{font-size:22px}.wrap{padding:14px}.rate{font-size:32px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><div><div class="title">GLOBAL FX LIVE BOARD</div><div class="sub">主要货币实时汇率大盘 · 自动刷新</div></div><div class="clock"><div class="time" id="clock">--:--:--</div><div class="status" id="status">实时更新</div></div></header>
+  <div class="ticker"><div class="ticker-track" id="ticker">加载行情中...</div></div>
+  <main class="grid" id="grid"></main>
+  <section class="bottom"><div class="board"><div class="board-title">MARKET HEAT / 涨跌热度</div><div class="bars" id="bars"></div></div><div class="note"><b class="source">数据源：</b>优先使用 ExchangeRate-API Open Access；失败后自动切换 Frankfurter，再失败切换 jsDelivr currency-api 备份。<br>说明：免费公开接口通常不是外汇交易所秒级盘口，本页采用“真实汇率定时拉取 + 屏幕秒级微动”来做金融大盘视觉效果。</div></section>
+</div>
+<div class="error" id="error"></div>
+<script>
+const pairs = [
+  ['USDJPY','美元 / 日元','USD','JPY'],['EURJPY','欧元 / 日元','EUR','JPY'],['CNYJPY','人民币 / 日元','CNY','JPY'],['GBPJPY','英镑 / 日元','GBP','JPY'],
+  ['AUDJPY','澳元 / 日元','AUD','JPY'],['KRWJPY','韩元 / 日元','KRW','JPY'],['EURUSD','欧元 / 美元','EUR','USD'],['USDCNY','美元 / 人民币','USD','CNY']
+];
+let state = {}, sourceName='';
+function fmt(n){ return n>=100? n.toFixed(3) : n>=10? n.toFixed(4) : n.toFixed(5); }
+function rnd(a,b){return a+Math.random()*(b-a)}
+function updateClock(){ const d=new Date(); clock.textContent=d.toLocaleTimeString('zh-CN',{hour12:false}); }
+setInterval(updateClock,1000); updateClock();
+async function fetchJSON(url){ const r=await fetch(url,{cache:'no-store'}); if(!r.ok) throw new Error(r.status+' '+url); return r.json(); }
+async function getRates(){
+  try{ const j=await fetchJSON('https://open.er-api.com/v6/latest/USD'); if(j.result!=='success') throw new Error('ExchangeRate-API returned '+j.result); sourceName='ExchangeRate-API'; return {base:'USD',rates:j.rates,date:j.time_last_update_utc}; }catch(e1){}
+  try{ const j=await fetchJSON('https://api.frankfurter.dev/v1/latest?base=USD'); sourceName='Frankfurter'; return {base:'USD',rates:{...j.rates,USD:1},date:j.date}; }catch(e2){}
+  const j=await fetchJSON('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+  sourceName='currency-api CDN'; const rates={USD:1}; Object.entries(j.usd).forEach(([k,v])=>rates[k.toUpperCase()]=v); return {base:'USD',rates,date:j.date};
+}
+function cross(rates, from, to){ return rates[to] / rates[from]; }
+function label(id){ return id.length===6 ? id.slice(0,3)+'/'+id.slice(3) : id; }
+function initCards(){ grid.innerHTML=pairs.map(p=>`<div class="card" id="card-${p[0]}"><div class="pair">${label(p[0])}</div><div class="name">${p[1]}</div><div class="rate" id="rate-${p[0]}">--</div><div class="delta" id="delta-${p[0]}">--</div><canvas class="spark" id="spark-${p[0]}"></canvas><div class="meta"><span>LIVE</span><span id="tick-${p[0]}">--</span></div></div>`).join(''); }
+function drawSpark(id, arr, up){ const c=document.getElementById('spark-'+id), ctx=c.getContext('2d'), w=c.clientWidth, h=c.clientHeight; c.width=w*2;c.height=h*2;ctx.scale(2,2);ctx.clearRect(0,0,w,h); const min=Math.min(...arr), max=Math.max(...arr), span=max-min||1; ctx.lineWidth=2; ctx.strokeStyle=up?'#20f09a':'#ff4b6e'; ctx.beginPath(); arr.forEach((v,i)=>{const x=i*(w/(arr.length-1)); const y=h-8-((v-min)/span)*(h-16); i?ctx.lineTo(x,y):ctx.moveTo(x,y)}); ctx.stroke(); ctx.lineTo(w,h); ctx.lineTo(0,h); ctx.closePath(); ctx.globalAlpha=.16; ctx.fillStyle=up?'#20f09a':'#ff4b6e'; ctx.fill(); ctx.globalAlpha=1; }
+function render(){
+  let tick=''; bars.innerHTML='';
+  pairs.forEach(([id,name])=>{ const s=state[id]; if(!s) return; const card=document.getElementById('card-'+id); const up=s.delta>=0; document.getElementById('rate-'+id).textContent=fmt(s.display); document.getElementById('delta-'+id).textContent=(up?'▲ ':'▼ ')+Math.abs(s.delta).toFixed(3)+'%'; document.getElementById('delta-'+id).className='delta '+(up?'up':'down'); document.getElementById('tick-'+id).textContent=new Date().toLocaleTimeString('zh-CN',{hour12:false}); drawSpark(id,s.hist,up); tick += `<span>${label(id)} <b>${fmt(s.display)}</b> <b class="${up?'up':'down'}">${up?'▲':'▼'} ${Math.abs(s.delta).toFixed(3)}%</b></span>`; const bh=12+Math.min(78,Math.abs(s.delta)*3200); bars.innerHTML += `<div class="bar ${up?'':'downbar'}" style="height:${bh}px"><small>${label(id)}</small></div>`; });
+  ticker.innerHTML=tick+tick;
+}
+async function refreshReal(){
+  try{ const data=await getRates(); error.style.display='none'; status.textContent=`实时更新 · ${new Date().toLocaleTimeString('zh-CN',{hour12:false})}`;
+    pairs.forEach(([id,name,from,to])=>{ const real=cross(data.rates,from,to); const old=state[id]?.real ?? real*(1+rnd(-.001,.001)); const delta=(real-old)/old*100; const hist=state[id]?.hist || Array.from({length:32},()=>real*(1+rnd(-.0015,.0015))); hist.push(real); while(hist.length>36) hist.shift(); state[id]={real,display:real,delta,hist}; const card=document.getElementById('card-'+id); card.classList.remove('flashUp','flashDown'); void card.offsetWidth; card.classList.add(delta>=0?'flashUp':'flashDown'); }); render();
+  }catch(e){ error.style.display='block'; error.textContent='行情源连接失败：可能是网络/CORS/接口限流。页面会继续显示上一次数据。'; status.textContent='实时更新'; }
+}
+function microMove(){ pairs.forEach(([id])=>{const s=state[id]; if(!s) return; const n=s.real*(1+rnd(-.00018,.00018)); s.display = s.display*.82 + n*.18; s.hist[s.hist.length-1]=s.display;}); render(); }
+initCards(); refreshReal(); setInterval(refreshReal,60000); setInterval(microMove,1200);
+</script>
+</body>
+</html>

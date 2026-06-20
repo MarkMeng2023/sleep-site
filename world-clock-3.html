@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #09060f;
+}
+canvas {
+  width: 100vw;
+  height: 100vh;
+  display: block;
+}
+</style>
+</head>
+
+<body>
+<canvas id="c"></canvas>
+
+<script>
+const canvas = document.getElementById("c");
+const ctx = canvas.getContext("2d");
+
+let w, h, dpr, size;
+let t = 0;
+
+function resize() {
+  dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  w = canvas.width = innerWidth * dpr;
+  h = canvas.height = innerHeight * dpr;
+  size = Math.min(w, h);
+}
+window.addEventListener("resize", resize);
+resize();
+
+function bg() {
+  const g = ctx.createRadialGradient(
+    w/2, h/2, 0,
+    w/2, h/2, size * 0.8
+  );
+  g.addColorStop(0, "#27132f");
+  g.addColorStop(0.45, "#090b18");
+  g.addColorStop(1, "#020104");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, w, h);
+}
+
+function polygon(points, fill, stroke, width=1) {
+  ctx.beginPath();
+  points.forEach((p, i) => {
+    if (i === 0) ctx.moveTo(p[0], p[1]);
+    else ctx.lineTo(p[0], p[1]);
+  });
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = width * dpr;
+  ctx.stroke();
+}
+
+function facetLayer(radius, layer) {
+  const count = 9 + layer * 3;
+
+  for (let i = 0; i < count; i++) {
+    const a = i / count * Math.PI * 2 + t * (0.04 + layer * 0.01);
+    const r1 = radius * (0.18 + layer * 0.075);
+    const r2 = r1 + radius * (0.11 + Math.sin(t + i) * 0.018);
+
+    const spread = Math.PI * 2 / count * 0.55;
+
+    const hue = 195 + Math.sin(t * 0.55 + i * 0.7 + layer) * 75;
+    const gold = 38 + Math.sin(t * 0.4 + i) * 12;
+
+    const useGold = (i + layer) % 4 === 0;
+    const color = useGold
+      ? `hsla(${gold}, 95%, 58%, 0.34)`
+      : `hsla(${hue}, 85%, 58%, 0.30)`;
+
+    const stroke = useGold
+      ? `hsla(${gold}, 100%, 76%, 0.55)`
+      : `hsla(${hue}, 100%, 78%, 0.42)`;
+
+    const pts = [
+      [Math.cos(a - spread) * r1, Math.sin(a - spread) * r1],
+      [Math.cos(a - spread * 0.35) * r2, Math.sin(a - spread * 0.35) * r2],
+      [Math.cos(a + spread * 0.45) * r2, Math.sin(a + spread * 0.45) * r2],
+      [Math.cos(a + spread) * r1, Math.sin(a + spread) * r1]
+    ];
+
+    polygon(pts, color, stroke, 0.9);
+  }
+}
+
+function drawOneSector(radius) {
+  ctx.save();
+
+  for (let l = 0; l < 8; l++) {
+    facetLayer(radius, l);
+  }
+
+  for (let r = radius * 0.18; r < radius * 0.96; r += radius * 0.075) {
+    ctx.beginPath();
+
+    const steps = 160;
+    for (let i = 0; i <= steps; i++) {
+      const a = i / steps * Math.PI * 2;
+      const wobble =
+        Math.sin(a * 6 + t * 0.9) * 5 * dpr +
+        Math.sin(a * 13 - t * 0.6) * 2.5 * dpr;
+
+      const rr = r + wobble;
+      const x = Math.cos(a) * rr;
+      const y = Math.sin(a) * rr;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 0.8 * dpr;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function kaleidoscope() {
+  const cx = w / 2;
+  const cy = h / 2;
+  const radius = size * 0.44;
+  const slices = 24;
+  const step = Math.PI * 2 / slices;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  ctx.globalCompositeOperation = "lighter";
+
+  for (let i = 0; i < slices; i++) {
+    ctx.save();
+    ctx.rotate(i * step + t * 0.035);
+
+    if (i % 2 === 1) ctx.scale(1, -1);
+
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, radius, -step / 2, step / 2);
+    ctx.closePath();
+    ctx.clip();
+
+    ctx.rotate(Math.sin(t * 0.33) * 0.12);
+    drawOneSector(radius);
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+function glassHighlights() {
+  const cx = w / 2;
+  const cy = h / 2;
+  const radius = size * 0.44;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.globalCompositeOperation = "screen";
+
+  for (let i = 0; i < 18; i++) {
+    const a = i / 18 * Math.PI * 2 + t * 0.06;
+    const r = radius * (0.25 + 0.68 * ((i % 6) / 6));
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+
+    const g = ctx.createRadialGradient(x, y, 0, x, y, radius * 0.18);
+    g.addColorStop(0, "rgba(255,255,255,0.22)");
+    g.addColorStop(0.35, "rgba(120,230,255,0.08)");
+    g.addColorStop(1, "rgba(0,0,0,0)");
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+function centerGem() {
+  const cx = w / 2;
+  const cy = h / 2;
+  const r = size * 0.085;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(t * 0.22);
+
+  for (let i = 0; i < 12; i++) {
+    const a1 = i / 12 * Math.PI * 2;
+    const a2 = (i + 1) / 12 * Math.PI * 2;
+
+    polygon([
+      [0, 0],
+      [Math.cos(a1) * r, Math.sin(a1) * r],
+      [Math.cos(a2) * r, Math.sin(a2) * r]
+    ],
+    `hsla(${190 + i * 12}, 90%, 62%, 0.55)`,
+    "rgba(255,255,255,0.35)",
+    0.8);
+  }
+
+  ctx.restore();
+}
+
+function squareMaskFrame() {
+  const cx = w / 2;
+  const cy = h / 2;
+  const s = size * 0.92;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+
+  ctx.strokeStyle = "rgba(255,255,255,0.28)";
+  ctx.lineWidth = 2 * dpr;
+  ctx.strokeRect(-s/2, -s/2, s, s);
+
+  ctx.strokeStyle = "rgba(255,210,120,0.22)";
+  ctx.lineWidth = 10 * dpr;
+  ctx.strokeRect(-s/2, -s/2, s, s);
+
+  ctx.restore();
+}
+
+function vignette() {
+  const v = ctx.createRadialGradient(
+    w/2, h/2, size*0.2,
+    w/2, h/2, size*0.72
+  );
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(0,0,0,0.38)");
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, w, h);
+}
+
+function draw() {
+  t += 0.0045;
+
+  ctx.clearRect(0, 0, w, h);
+
+  bg();
+  kaleidoscope();
+  glassHighlights();
+  centerGem();
+  vignette();
+  squareMaskFrame();
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
+</body>
+</html>
