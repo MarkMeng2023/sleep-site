@@ -99,6 +99,11 @@ html,body{
   display:flex;align-items:center;justify-content:center;
   color:white;font-size:22px;font-weight:900;
 }
+.metric .ico svg{
+  width:25px;
+  height:25px;
+  display:block;
+}
 .metric .lab{
   color:#607895;font-weight:900;font-size:13px;line-height:1.15;
 }
@@ -145,6 +150,20 @@ html,body{
   background:
     radial-gradient(circle at 50% 45%,rgba(18,145,230,.05),transparent 45%),
     linear-gradient(180deg,rgba(3,18,42,.05),rgba(3,18,42,.16));
+}
+.mapOverlay::after{
+  content:"";
+  position:absolute;
+  left:-40%;
+  top:0;
+  width:34%;
+  height:100%;
+  background:linear-gradient(90deg,transparent,rgba(52,220,255,.12),transparent);
+  animation:scanSweep 8s linear infinite;
+}
+@keyframes scanSweep{
+  from{left:-40%}
+  to{left:110%}
 }
 
 .eqMarker{
@@ -322,10 +341,10 @@ html,body{
           <p>数据来源：USGS 美国地质调查局 · 实时更新</p>
         </div>
       </div>
-      <div class="metric"><div class="ico" style="background:#1889ff">◷</div><div><div class="lab">最近24小时地震事件</div><div class="val"><span id="total">--</span><small>次</small></div></div></div>
-      <div class="metric"><div class="ico" style="background:#ff8518">⌁</div><div><div class="lab">最近24小时最大震级</div><div class="val" style="color:#ff7600" id="maxMag">M --</div></div></div>
-      <div class="metric"><div class="ico" style="background:#28c96a">◎</div><div><div class="lab">M4.0 及以上</div><div class="val" style="color:#14a960"><span id="m4plus">--</span><small>次</small></div></div></div>
-      <div class="metric"><div class="ico" style="background:#8757f2">↻</div><div><div class="lab">下次刷新</div><div class="val" style="color:#624bd0"><span id="countdown">60</span><small>秒</small></div></div></div>
+      <div class="metric"><div class="ico" style="background:#1889ff"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="13" fill="none" stroke="currentColor" stroke-width="4"/><path d="M24 14v11h10" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><div class="lab">最近24小时地震事件</div><div class="val"><span id="total">--</span><small>次</small></div></div></div>
+      <div class="metric"><div class="ico" style="background:#ff8518"><svg viewBox="0 0 48 48"><path d="M27 6 13 27h11l-3 15 14-21H24l3-15Z" fill="currentColor"/></svg></div><div><div class="lab">最近24小时最大震级</div><div class="val" style="color:#ff7600" id="maxMag">M --</div></div></div>
+      <div class="metric"><div class="ico" style="background:#28c96a"><svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="24" cy="24" r="8" fill="none" stroke="currentColor" stroke-width="4"/><circle cx="24" cy="24" r="3" fill="currentColor"/></svg></div><div><div class="lab">M4.0 及以上</div><div class="val" style="color:#14a960"><span id="m4plus">--</span><small>次</small></div></div></div>
+      <div class="metric"><div class="ico" style="background:#8757f2"><svg viewBox="0 0 48 48"><path d="M34 16a14 14 0 1 1-11-5" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/><path d="M24 5v12h12" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><div class="lab">下次刷新</div><div class="val" style="color:#624bd0"><span id="countdown">10</span><small>秒</small></div></div></div>
     </header>
 
     <main class="main">
@@ -363,7 +382,7 @@ html,body{
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const FEED='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
-const REFRESH=60;
+const REFRESH=10;
 let countdown=REFRESH;
 let map=null;
 let markerLayer=null;
