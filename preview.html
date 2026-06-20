@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>全球地震实时监测中心</title>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<style>
+*{box-sizing:border-box}
+html,body{
+  margin:0;width:100%;height:100%;overflow:hidden;background:#020914;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei","PingFang SC",Arial,sans-serif;
+  color:#fff;
+}
+#app{
+  width:100vw;height:100vh;padding:18px;
+  background:linear-gradient(135deg,#094897 0%,#073578 45%,#061d45 100%);
+}
+#app.alertMode{
+  background:
+    radial-gradient(circle at 50% 30%,rgba(255,44,44,.16),transparent 42%),
+    linear-gradient(135deg,#0d438b 0%,#13336c 42%,#261747 100%);
+  animation:alertBg 1.8s ease-in-out infinite alternate;
+}
+@keyframes alertBg{
+  from{filter:saturate(1) brightness(1)}
+  to{filter:saturate(1.35) brightness(1.08)}
+}
+#app.alertMode .frame{
+  border-color:rgba(255,96,96,.68);
+  box-shadow:0 0 22px rgba(255,45,45,.32), inset 0 0 42px rgba(255,0,0,.12);
+}
+#app.alertMode .focus{
+  background:linear-gradient(135deg,rgba(255,76,76,.78),rgba(255,139,24,.66));
+  box-shadow:0 0 24px rgba(255,45,45,.42),0 18px 38px rgba(0,0,0,.25);
+}
+#app.alertMode .live{
+  background:#fff;
+  color:#d90019;
+}
+.frame{
+  height:100%;
+  padding:18px;
+  border-radius:22px;
+  background:rgba(2,23,55,.76);
+  border:1px solid rgba(116,198,255,.36);
+  box-shadow:inset 0 0 48px rgba(0,165,255,.13);
+  display:grid;
+  grid-template-rows:82px 1fr 56px;
+  gap:14px;
+  min-height:0;
+}
+.top{
+  display:grid;
+  grid-template-columns:360px repeat(4,1fr);
+  gap:14px;
+  min-width:0;
+}
+.brand{
+  border-radius:17px;
+  background:linear-gradient(135deg,#073b83,#062f6b);
+  padding:13px 18px;
+  display:flex;align-items:center;gap:14px;
+  overflow:hidden;
+  min-width:0;
+}
+.brand svg{width:48px;height:48px;flex:0 0 auto;filter:drop-shadow(0 0 14px #24dfff)}
+.brand h1{
+  margin:0;
+  font-size:25px;
+  line-height:1.05;
+  font-weight:1000;
+  letter-spacing:.01em;
+  white-space:nowrap;
+  transform:scaleX(.94);
+  transform-origin:left center;
+}
+.brand p{
+  margin:7px 0 0;
+  font-size:13px;
+  line-height:1;
+  color:#cfe6ff;
+  font-weight:800;
+  white-space:nowrap;
+}
+.metric{
+  min-width:0;
+  border-radius:17px;
+  background:linear-gradient(145deg,#f8fbff,#e6eef8);
+  color:#092a54;
+  display:flex;align-items:center;gap:12px;
+  padding:11px 13px;
+  overflow:hidden;
+}
+.metric .ico{
+  width:42px;height:42px;border-radius:50%;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  color:white;font-size:22px;font-weight:900;
+}
+.metric .lab{
+  color:#607895;font-weight:900;font-size:13px;line-height:1.15;
+}
+.metric .val{
+  margin-top:4px;font-weight:1000;font-size:27px;line-height:1;white-space:nowrap;
+}
+.metric small{font-size:15px;margin-left:3px;color:#1877d7}
+
+.main{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 245px;
+  gap:14px;
+  min-height:0;
+}
+.mapBox,.side{
+  border-radius:18px;
+  border:1px solid rgba(182,224,255,.30);
+  overflow:hidden;
+  min-height:0;
+}
+.mapBox{
+  position:relative;
+  background:#052552;
+}
+#map{
+  position:absolute;
+  inset:0;
+  z-index:1;
+  background:#052552;
+}
+.leaflet-container{
+  background:#052552;
+  font-family:inherit;
+}
+.leaflet-control-container{display:none}
+.leaflet-tile{
+  filter:saturate(1.12) contrast(1.06) brightness(.82);
+}
+.mapOverlay{
+  position:absolute;
+  inset:0;
+  z-index:2;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 45%,rgba(18,145,230,.05),transparent 45%),
+    linear-gradient(180deg,rgba(3,18,42,.05),rgba(3,18,42,.16));
+}
+
+.eqMarker{
+  width:17px;height:17px;border-radius:50%;
+  background:currentColor;
+  border:3px solid rgba(255,255,255,.94);
+  box-shadow:0 0 13px currentColor,0 0 28px currentColor;
+}
+.eqMarker.s1{width:12px;height:12px;border-width:2px}
+.eqMarker.s2{width:14px;height:14px;border-width:2px}
+.eqMarker.s3{width:18px;height:18px;border-width:3px}
+.eqMarker.s4{width:23px;height:23px;border-width:3px}
+
+.targetIcon{
+  position:relative;
+  width:126px;height:126px;
+  transform:translate(-63px,-63px);
+  pointer-events:none;
+}
+.targetIcon .h,.targetIcon .v{
+  position:absolute;background:rgba(210,248,255,.86);
+  box-shadow:0 0 14px rgba(39,217,255,.9);
+}
+.targetIcon .h{left:8px;right:8px;top:50%;height:2px;transform:translateY(-50%)}
+.targetIcon .v{top:8px;bottom:8px;left:50%;width:2px;transform:translateX(-50%)}
+.targetIcon .core{
+  position:absolute;left:50%;top:50%;
+  width:18px;height:18px;border-radius:50%;
+  transform:translate(-50%,-50%);
+  background:#fff;border:5px solid #29ee88;
+  box-shadow:0 0 0 5px rgba(0,0,0,.45),0 0 18px rgba(38,233,122,.85);
+}
+.targetIcon .ring{
+  position:absolute;left:50%;top:50%;
+  border:2px solid rgba(45,222,255,.9);
+  border-radius:50%;
+  transform:translate(-50%,-50%);
+  animation:ring 2.4s ease-out infinite;
+}
+.targetIcon .r2{animation-delay:.55s}
+.targetIcon .r3{animation-delay:1.1s}
+@keyframes ring{
+  0%{width:18px;height:18px;opacity:.9}
+  100%{width:118px;height:118px;opacity:0}
+}
+
+.focus{
+  position:absolute;left:22px;top:22px;z-index:5;
+  width:250px;
+  border-radius:15px;
+  background:linear-gradient(135deg,rgba(107,75,255,.84),rgba(11,142,226,.76));
+  border:1px solid rgba(255,255,255,.24);
+  backdrop-filter:blur(12px);
+  box-shadow:0 16px 38px rgba(0,0,0,.22);
+  padding:12px 14px;
+}
+.focusHead{display:flex;align-items:center;justify-content:space-between;font-size:15px;font-weight:1000}
+.live{font-size:10px;background:#ff3150;border-radius:999px;padding:4px 7px;font-weight:1000}
+.focusMag{margin:8px 0 6px;font-size:30px;line-height:1;font-weight:1000;color:#ffd530}
+.focusMag span{font-size:13px;margin-left:4px;color:#fff04b}
+.focusInfo{display:grid;gap:5px;font-size:12px;font-weight:850;line-height:1.25}
+.focusInfo div{
+  white-space:normal;
+  overflow:visible;
+  text-overflow:clip;
+}
+.focusInfo .focusPlaceLine{
+  display:block;
+  line-height:1.35;
+  max-height:54px;
+  overflow:hidden;
+}
+
+.side{
+  background:rgba(5,35,78,.88);
+  display:grid;
+  grid-template-rows:52px 1fr;
+}
+.sideHead{
+  padding:0 14px;
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(255,255,255,.13);
+}
+.sideHead h2{margin:0;font-size:21px;font-weight:1000}
+.sideHead span{font-size:12px;color:#a9c9e8;font-weight:850}
+.listWrap{position:relative;overflow:hidden;min-height:0}
+.list{
+  position:absolute;left:0;right:0;top:0;
+  animation:listMove 44s linear infinite;
+}
+@keyframes listMove{0%,14%{transform:translateY(0)}100%{transform:translateY(-50%)}}
+.event{
+  height:78px;
+  border-bottom:1px solid rgba(255,255,255,.11);
+  padding:10px 10px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 58px;
+  gap:8px;align-items:center;
+}
+.time{font-size:12px;color:#bdd4ec;font-weight:850;margin-bottom:4px}
+.place{
+  font-size:13px;line-height:1.22;font-weight:950;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+}
+.badge{
+  width:56px;height:48px;border-radius:11px;background:rgba(255,255,255,.12);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:1000;
+}
+.badge .m{font-size:17px}.badge .l{font-size:10px;margin-top:1px}
+
+.ticker{
+  display:grid;
+  grid-template-columns:190px minmax(0,1fr);
+  border-radius:17px;overflow:hidden;
+  background:linear-gradient(90deg,#0055be,#0791ff);
+}
+.tickerLabel{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  background:linear-gradient(135deg,#ff8b18,#ff3155);
+  font-size:23px;font-weight:1000;
+  z-index:2;
+  box-shadow:16px 0 22px rgba(0,0,0,.18);
+}
+.tickerWindow{position:relative;overflow:hidden}
+.tickerTrack{
+  position:absolute;left:0;top:0;height:100%;
+  display:flex;align-items:center;gap:42px;white-space:nowrap;
+  animation:ticker 78s linear infinite;
+}
+.tickerTrack span{font-size:17px;font-weight:900}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+.toast{
+  position:absolute;right:14px;bottom:14px;
+  display:none;background:rgba(0,0,0,.58);color:#ffd84b;
+  border-radius:999px;padding:7px 12px;font-size:12px;font-weight:900;z-index:6;
+}
+.toast.show{display:block}
+.alertBanner{
+  position:absolute;
+  left:50%;
+  top:14px;
+  transform:translateX(-50%);
+  z-index:7;
+  display:none;
+  padding:9px 20px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#ff3650,#ff8a18);
+  color:#fff;
+  font-size:17px;
+  font-weight:1000;
+  letter-spacing:.04em;
+  box-shadow:0 0 18px rgba(255,40,40,.45);
+}
+.alertMode .alertBanner{display:block}
+
+@media (max-width:1200px){
+  .top{grid-template-columns:310px repeat(4,1fr);gap:10px}
+  .brand h1{font-size:22px}
+  .brand p{font-size:12px}
+  .metric .ico{width:36px;height:36px}
+  .metric .val{font-size:23px}
+  .main{grid-template-columns:minmax(0,1fr) 220px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="frame">
+    <header class="top">
+      <div class="brand">
+        <svg viewBox="0 0 64 64" fill="none"><path d="M4 34h12l6-16 9 34 8-42 7 24h14" stroke="#2ee8ff" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"/></svg>
+        <div>
+          <h1>全球地震实时监测中心</h1>
+          <p>数据来源：USGS 美国地质调查局 · 实时更新</p>
+        </div>
+      </div>
+      <div class="metric"><div class="ico" style="background:#1889ff">◷</div><div><div class="lab">最近24小时地震事件</div><div class="val"><span id="total">--</span><small>次</small></div></div></div>
+      <div class="metric"><div class="ico" style="background:#ff8518">⌁</div><div><div class="lab">最近24小时最大震级</div><div class="val" style="color:#ff7600" id="maxMag">M --</div></div></div>
+      <div class="metric"><div class="ico" style="background:#28c96a">◎</div><div><div class="lab">M4.0 及以上</div><div class="val" style="color:#14a960"><span id="m4plus">--</span><small>次</small></div></div></div>
+      <div class="metric"><div class="ico" style="background:#8757f2">↻</div><div><div class="lab">下次刷新</div><div class="val" style="color:#624bd0"><span id="countdown">60</span><small>秒</small></div></div></div>
+    </header>
+
+    <main class="main">
+      <section class="mapBox">
+        <div id="map"></div>
+        <div class="mapOverlay"></div>
+
+        <div class="focus">
+          <div class="focusHead"><span>正在关注</span><span class="live">LIVE</span></div>
+          <div class="focusMag"><span id="focusM">M --</span><span id="focusLevel">--</span></div>
+          <div class="focusInfo">
+            <div>📍 <span id="focusPlace" class="focusPlaceLine">正在读取地震数据...</span></div>
+            <div>◎ 震源深度约 <span id="focusDepth">--</span> 公里</div>
+            <div>◷ <span id="focusAgo">--</span> 前发生</div>
+          </div>
+        </div>
+
+        <div class="alertBanner" id="alertBanner">⚠️ 强震警报：检测到 M6.0 及以上地震</div>
+        <div class="toast" id="toast">数据读取失败，稍后自动重试</div>
+      </section>
+
+      <aside class="side">
+        <div class="sideHead"><h2>最近地震</h2><span>滚动更新</span></div>
+        <div class="listWrap"><div class="list" id="list"></div></div>
+      </aside>
+    </main>
+
+    <footer class="ticker">
+      <div class="tickerLabel">📣 最新速报</div>
+      <div class="tickerWindow"><div class="tickerTrack" id="tickerTrack"></div></div>
+    </footer>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const FEED='https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson';
+const REFRESH=60;
+let countdown=REFRESH;
+let map=null;
+let markerLayer=null;
+let targetMarker=null;
+let latestFeatures=[];
+let lastFocusedId=null;
+let lastSeenNewestId=null;
+let lastAlertId=null;
+let alertTimeout=null;
+
+const levels=[
+  {min:-99,max:1.999,label:'微震',color:'#22d68b',size:'s1'},
+  {min:2,max:2.999,label:'小震',color:'#73e653',size:'s2'},
+  {min:3,max:3.999,label:'弱震',color:'#ffd12b',size:'s2'},
+  {min:4,max:4.999,label:'轻微地震',color:'#ff8a18',size:'s3'},
+  {min:5,max:5.999,label:'中等地震',color:'#ff3f4f',size:'s4'},
+  {min:6,max:6.999,label:'强震',color:'#8e5cff',size:'s4'},
+  {min:7,max:99,label:'大地震',color:'#ff3ea8',size:'s4'}
+];
+const trans=[
+ ['California','加利福尼亚州'],['Alaska','阿拉斯加'],['Nevada','内华达州'],['Colorado','科罗拉多州'],
+ ['Hawaii','夏威夷'],['Oklahoma','俄克拉荷马州'],['Texas','得克萨斯州'],['Puerto Rico','波多黎各'],
+ ['El Salvador','萨尔瓦多'],['Mexico','墨西哥'],['Chile','智利'],['Japan','日本'],
+ ['Indonesia','印度尼西亚'],['Philippines','菲律宾'],['Russia','俄罗斯'],['Tonga','汤加'],
+ ['Fiji','斐济'],['New Zealand','新西兰'],['Vanuatu','瓦努阿图'],['Papua New Guinea','巴布亚新几内亚'],
+ ['Solomon Islands','所罗门群岛'],['Kermadec Islands','克马德克群岛'],['Kuril Islands','千岛群岛']
+];
+
+function safeMapReady(){
+  return map && markerLayer && typeof map.invalidateSize === 'function';
+}
+
+function initMap(){
+  if(typeof L === 'undefined'){
+    console.warn('Leaflet 尚未加载，稍后重试');
+    setTimeout(initMap, 500);
+    return;
+  }
+
+  try{
+    map = L.map('map', {
+      zoomControl:false,
+      attributionControl:false,
+      worldCopyJump:true,
+      preferCanvas:true
+    }).setView([18, 20], 2);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom:7,
+      minZoom:2,
+      noWrap:false,
+      crossOrigin:true
+    }).addTo(map);
+
+    markerLayer = L.layerGroup().addTo(map);
+
+    setTimeout(()=>{ if(safeMapReady()) map.invalidateSize(true); }, 300);
+    setTimeout(()=>{ if(safeMapReady()) map.invalidateSize(true); }, 1000);
+
+    load();
+  }catch(e){
+    console.error('地图初始化失败', e);
+    document.getElementById('toast').classList.add('show');
+  }
+}
+
+function lvl(m){return levels.find(x=>m>=x.min&&m<=x.max)||levels[0]}
+function ago(t){
+  const m=Math.floor(Math.max(0,Date.now()-t)/60000);
+  if(m<1)return'刚刚';
+  if(m<60)return`${m}分钟前`;
+  const h=Math.floor(m/60);
+  if(h<24)return`${h}小时前`;
+  return`${Math.floor(h/24)}天前`;
+}
+function cn(s){
+  if(!s)return'位置待确认';
+  let r=s.replace(/\s+/g,' ').trim();
+
+  // 保护 USGS 原始方向表达，避免把 W / N / of 拆坏。
+  // 例：72 km WNW of Nanwalek, Alaska
+  const m = r.match(/^([\d.]+)\s*km\s+([A-Z]{1,3})\s+of\s+(.+)$/);
+  if(m){
+    const dirMap={
+      N:'北',S:'南',E:'东',W:'西',
+      NE:'东北',NW:'西北',SE:'东南',SW:'西南',
+      NNE:'东北偏北',NNW:'西北偏北',ENE:'东北偏东',WNW:'西北偏西',
+      ESE:'东南偏东',WSW:'西南偏西',SSE:'东南偏南',SSW:'西南偏南'
+    };
+    let place=m[3];
+    for(const [a,b] of trans) place=place.replaceAll(a,b);
+    return `距 ${place} ${m[1]}公里 ${dirMap[m[2]]||m[2]}`;
+  }
+
+  for(const [a,b] of trans) r=r.replaceAll(a,b);
+  return r.replace(/\s+/g,' ');
+}
+
+function short(s,n=34){
+  let r=cn(s);
+  return r.length>n?r.slice(0,n)+'…':r;
+}
+
+function markerIcon(m){
+  const l=lvl(m);
+  return L.divIcon({
+    className:'',
+    html:`<div class="eqMarker ${l.size}" style="color:${l.color}"></div>`,
+    iconSize:[28,28],
+    iconAnchor:[14,14]
+  });
+}
+function targetIcon(){
+  return L.divIcon({
+    className:'',
+    html:`<div class="targetIcon">
+      <div class="ring"></div><div class="ring r2"></div><div class="ring r3"></div>
+      <div class="h"></div><div class="v"></div><div class="core"></div>
+    </div>`,
+    iconSize:[126,126],
+    iconAnchor:[63,63]
+  });
+}
+
+function renderStats(features){
+  const byMag=[...features].sort((a,b)=>(Number(b.properties.mag||0)-Number(a.properties.mag||0)) || (b.properties.time-a.properties.time));
+  const max=Number(byMag[0]?.properties.mag||0);
+  document.getElementById('total').textContent=features.length;
+  document.getElementById('maxMag').textContent='M '+max.toFixed(1);
+  document.getElementById('m4plus').textContent=features.filter(f=>Number(f.properties.mag||0)>=4).length;
+}
+
+function renderMarkers(features){
+  if(!safeMapReady()) return;
+  markerLayer.clearLayers();
+
+  features.forEach(f=>{
+    const [lon,lat]=f.geometry.coordinates;
+    const m=Number(f.properties.mag||0);
+    L.marker([lat,lon], {icon:markerIcon(m), interactive:false}).addTo(markerLayer);
+  });
+}
+
+function renderListAndTicker(features){
+  const sorted=[...features].sort((a,b)=>b.properties.time-a.properties.time);
+
+  const eventHTML=sorted.slice(0,12).map(f=>{
+    const p=f.properties,m=Number(p.mag||0),l=lvl(m);
+    return `<div class="event"><div><div class="time">${ago(p.time)}</div><div class="place">${short(p.place,30)}</div></div><div class="badge" style="color:${l.color}"><div class="m">M ${m.toFixed(1)}</div><div class="l">${l.label}</div></div></div>`;
+  }).join('');
+  document.getElementById('list').innerHTML=eventHTML+eventHTML;
+
+  const ticker=sorted.slice(0,10).map(f=>{
+    const p=f.properties,m=Number(p.mag||0),l=lvl(m);
+    return `<span><b style="color:${l.color}">●</b> ${ago(p.time)} ${short(p.place,28)}发生 <b style="color:${l.color}">M${m.toFixed(1)}</b> 级地震</span>`;
+  }).join('');
+  document.getElementById('tickerTrack').innerHTML=ticker+ticker;
+}
+
+function pickFocus(features){
+  if(!features.length) return null;
+
+  // M6.0 及以上：强制优先关注最近的强震
+  const major = features
+    .filter(f=>Number(f.properties.mag||0)>=6)
+    .sort((a,b)=>b.properties.time-a.properties.time);
+
+  if(major.length) return {feature:major[0], alert:true};
+
+  // 平时：关注最新发生的地震
+  const newest = [...features].sort((a,b)=>b.properties.time-a.properties.time)[0];
+  return {feature:newest, alert:false};
+}
+
+function updateAlertMode(feature, alert){
+  const app=document.getElementById('app');
+  const banner=document.getElementById('alertBanner');
+
+  if(!alert || !feature) return;
+
+  const alertId = feature.id || String(feature.properties.time) + feature.properties.place;
+
+  // 同一条 M6+ 只触发一次 30 秒轻度警报；新的 M6+ 会重新触发。
+  if(alertId === lastAlertId && app.classList.contains('alertMode')) return;
+
+  lastAlertId = alertId;
+  const m=Number(feature.properties.mag||0).toFixed(1);
+  banner.textContent=`⚠️ 强震提示：检测到 M${m} 级地震`;
+  app.classList.add('alertMode');
+
+  clearTimeout(alertTimeout);
+  alertTimeout=setTimeout(()=>{
+    app.classList.remove('alertMode');
+  }, 30000);
+}
+
+function showFocus(feature, shouldFly=true){
+  if(!feature) return;
+
+  const p=feature.properties;
+  const m=Number(p.mag||0);
+  const l=lvl(m);
+  const d=Number(feature.geometry.coordinates[2]||0);
+  const [lon,lat]=feature.geometry.coordinates;
+
+  document.getElementById('focusM').textContent='M '+m.toFixed(1);
+  document.getElementById('focusLevel').textContent=l.label;
+  document.getElementById('focusLevel').style.color=l.color;
+  document.getElementById('focusPlace').textContent=short(p.place,36);
+  document.getElementById('focusDepth').textContent=d.toFixed(0);
+  document.getElementById('focusAgo').textContent=ago(p.time);
+
+  if(!safeMapReady()) return;
+
+  if(targetMarker) map.removeLayer(targetMarker);
+  targetMarker=L.marker([lat,lon], {icon:targetIcon(), interactive:false, zIndexOffset:999}).addTo(map);
+
+  if(shouldFly){
+    // 飞到当前关注震源后停在那里；不再自动回到默认中心点。
+    map.flyTo([lat,lon], m>=4 ? 4 : 3, {duration:1.8});
+  }
+}
+
+function render(features){
+  latestFeatures=features;
+  renderStats(features);
+  renderMarkers(features);
+  renderListAndTicker(features);
+
+  const selected = pickFocus(features);
+  if(!selected || !selected.feature) return;
+
+  updateAlertMode(selected.feature, selected.alert);
+
+  const focusId = selected.feature.id || String(selected.feature.properties.time) + selected.feature.properties.place;
+  const newest = [...features].sort((a,b)=>b.properties.time-a.properties.time)[0];
+  const newestId = newest ? (newest.id || String(newest.properties.time) + newest.properties.place) : null;
+
+  // 逻辑：
+  // 1. 第一次加载：关注最新地震
+  // 2. 之后只有出现“新的最新地震”才飞过去
+  // 3. 如果出现 M6.0+，强制关注强震
+  const shouldFly = selected.alert || lastFocusedId === null || newestId !== lastSeenNewestId;
+
+  showFocus(selected.feature, shouldFly);
+
+  lastFocusedId = focusId;
+  lastSeenNewestId = newestId;
+}
+
+async function load(){
+  const toast=document.getElementById('toast');
+  try{
+    const res=await fetch(FEED+'?t='+Date.now(),{cache:'no-store'});
+    if(!res.ok)throw new Error('fetch failed');
+    const data=await res.json();
+    const features=(data.features||[]).filter(f=>f.geometry&&f.geometry.coordinates&&f.properties);
+    if(!features.length)throw new Error('empty');
+    toast.classList.remove('show');
+    render(features);
+    setTimeout(()=>{ if(safeMapReady()) map.invalidateSize(true); },100);
+  }catch(e){
+    console.error(e);
+    toast.classList.add('show');
+  }
+}
+
+setInterval(()=>{
+  countdown--;
+  if(countdown<=0){
+    countdown=REFRESH;
+    if(safeMapReady()) load();
+  }
+  document.getElementById('countdown').textContent=countdown;
+},1000);
+
+window.addEventListener('load', initMap);
+window.addEventListener('resize',()=>setTimeout(()=>{
+  if(safeMapReady()) map.invalidateSize(true);
+},200));
+</script>
+</body>
+</html>
